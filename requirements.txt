@@ -1,0 +1,24 @@
+# AI Image Editor - Requirements
+
+# Web Framework
+flask>=2.3.0
+flask-cors>=4.0.0
+werkzeug>=2.3.0
+
+# Image Processing
+Pillow>=10.0.0
+
+# Deep Learning
+torch>=2.0.0
+transformers>=4.35.0
+accelerate>=0.24.0
+
+# For Qwen Vision-Language Model
+qwen-vl-utils>=0.0.1
+
+# For Stable Diffusion
+diffusers>=0.24.0
+safetensors>=0.4.0
+
+# Optional: For quantized models
+bitsandbytes>=0.41.0
