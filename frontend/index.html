@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Image Editor</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🎨 AI Image Editor</h1>
-            <p class="subtitle">Generate and edit images with AI</p>
+            <h1>✨ AI Image Editor</h1>
+            <p class="subtitle">Transform your ideas into stunning visuals with AI</p>
         </header>
 
         <main>
@@ -37,8 +38,12 @@
             <!-- Mode Tabs -->
             <section class="mode-section">
                 <div class="tabs">
-                    <button class="tab-btn active" data-mode="text-to-image">Text to Image</button>
-                    <button class="tab-btn" data-mode="image-to-image">Image to Image</button>
+                    <button class="tab-btn active" data-mode="text-to-image">
+                        <span>🖼️</span> Text to Image
+                    </button>
+                    <button class="tab-btn" data-mode="image-to-image">
+                        <span>🔄</span> Image to Image
+                    </button>
                 </div>
             </section>
 
@@ -46,24 +51,26 @@
             <section id="text-to-image-section" class="generation-section">
                 <h2>Text to Image</h2>
                 <div class="form-group">
-                    <label for="t2i-prompt">Prompt:</label>
-                    <textarea id="t2i-prompt" rows="4" placeholder="Describe the image you want to generate..."></textarea>
+                    <label for="t2i-prompt">Prompt</label>
+                    <textarea id="t2i-prompt" rows="4" placeholder="Describe the image you want to generate... (e.g., 'A serene mountain landscape at sunset with a crystal clear lake')"></textarea>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="t2i-width">Width:</label>
+                        <label for="t2i-width">Width</label>
                         <input type="number" id="t2i-width" value="512" min="256" max="2048" step="64">
                     </div>
                     <div class="form-group">
-                        <label for="t2i-height">Height:</label>
+                        <label for="t2i-height">Height</label>
                         <input type="number" id="t2i-height" value="512" min="256" max="2048" step="64">
                     </div>
                     <div class="form-group">
-                        <label for="t2i-steps">Steps:</label>
+                        <label for="t2i-steps">Steps</label>
                         <input type="number" id="t2i-steps" value="30" min="1" max="100">
                     </div>
                 </div>
-                <button id="t2i-generate-btn" class="btn btn-primary btn-large">Generate Image</button>
+                <button id="t2i-generate-btn" class="btn btn-primary btn-large">
+                    <span>✨</span> Generate Image
+                </button>
             </section>
 
             <!-- Image to Image Section -->
@@ -75,45 +82,51 @@
                     <div class="upload-content">
                         <span class="upload-icon">📁</span>
                         <p>Drag & drop images here or click to select</p>
-                        <p class="upload-hint">Supports multiple images (PNG, JPG, WEBP)</p>
+                        <p class="upload-hint">Supports multiple images (PNG, JPG, WEBP, GIF)</p>
                     </div>
                     <input type="file" id="image-input" multiple accept="image/*" hidden>
                 </div>
 
                 <!-- Preview Area -->
-                <div id="preview-area" class="preview-area">
+                <div id="preview-area" class="preview-area hidden">
                     <div id="preview-container" class="preview-container"></div>
-                    <button id="clear-images-btn" class="btn btn-secondary">Clear Images</button>
+                    <button id="clear-images-btn" class="btn btn-secondary">Clear All Images</button>
                 </div>
 
                 <div class="form-group">
-                    <label for="i2i-prompt">Prompt:</label>
-                    <textarea id="i2i-prompt" rows="4" placeholder="Describe how you want to edit the image..."></textarea>
+                    <label for="i2i-prompt">Prompt</label>
+                    <textarea id="i2i-prompt" rows="4" placeholder="Describe how you want to edit the image... (e.g., 'Add a sunset sky', 'Make it look like a painting')"></textarea>
                 </div>
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="i2i-steps">Steps:</label>
+                        <label for="i2i-steps">Steps</label>
                         <input type="number" id="i2i-steps" value="30" min="1" max="100">
                     </div>
                     <div class="form-group">
-                        <label for="i2i-guidance">Guidance Scale:</label>
+                        <label for="i2i-guidance">Guidance Scale</label>
                         <input type="number" id="i2i-guidance" value="7.5" min="1" max="20" step="0.5">
                     </div>
                 </div>
                 
-                <button id="i2i-generate-btn" class="btn btn-primary btn-large">Edit Image</button>
+                <button id="i2i-generate-btn" class="btn btn-primary btn-large">
+                    <span>🎨</span> Edit Image
+                </button>
             </section>
 
             <!-- Result Section -->
             <section id="result-section" class="result-section hidden">
-                <h2>Result</h2>
+                <h2>Generated Result</h2>
                 <div class="result-container">
                     <img id="result-image" src="" alt="Generated image">
                 </div>
                 <div class="result-actions">
-                    <button id="download-btn" class="btn btn-secondary">Download</button>
-                    <button id="use-as-input-btn" class="btn btn-secondary">Use as Input</button>
+                    <button id="download-btn" class="btn btn-secondary">
+                        <span>💾</span> Download
+                    </button>
+                    <button id="use-as-input-btn" class="btn btn-secondary">
+                        <span>🔄</span> Use as Input
+                    </button>
                 </div>
             </section>
 
@@ -127,7 +140,7 @@
         </main>
 
         <footer>
-            <p>AI Image Editor - Powered by Quantized Models</p>
+            <p>🎨 AI Image Editor — Powered by Quantized Models</p>
         </footer>
     </div>
 

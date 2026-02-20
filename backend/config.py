@@ -39,7 +39,7 @@ AVAILABLE_MODELS = {
 
 # Server configuration
 HOST = "0.0.0.0"
-PORT = 5000
+PORT = 5005
 DEBUG = True
 
 # Allowed image extensions
