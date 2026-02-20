@@ -64,7 +64,7 @@ class ModelManager:
             
             if model_format == "gguf":
                 self._load_gguf_model(model_id, model_path, model_config)
-            elif model_type == "image-to-image":
+            elif model_format == "transformers" or model_type == "image-to-image":
                 self._load_image_to_image_model(model_id, model_path)
             elif model_type == "text-to-image":
                 self._load_text_to_image_model(model_id, model_path)
@@ -119,31 +119,56 @@ class ModelManager:
     
     def _load_image_to_image_model(self, model_id: str, model_path: str):
         """Load an image-to-image model (e.g., Qwen Image)."""
-        # Check if model path exists
-        if not os.path.exists(model_path):
-            # Try to load from HuggingFace or use a placeholder
-            logger.warning(f"Model path {model_path} not found. Attempting to load from HuggingFace...")
-        
-        try:
-            # Try to load Qwen2-VL or similar vision-language model
-            from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
-            from qwen_vl_utils import process_vision_info
+        # For Qwen Image models, use HuggingFace instead of GGUF
+        if "qwen" in model_id.lower():
+            logger.info(f"Loading Qwen Image model from HuggingFace (ignoring GGUF path)")
+            try:
+                # Try to load Qwen2-VL or similar vision-language model
+                from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+                from qwen_vl_utils import process_vision_info
+                
+                self.current_model = {
+                    "model": Qwen2VLForConditionalGeneration.from_pretrained(
+                        "Qwen/Qwen2-VL-7B-Instruct",
+                        torch_dtype="auto",
+                        device_map="auto"
+                    ),
+                    "processor": AutoProcessor.from_pretrained(
+                        "Qwen/Qwen2-VL-7B-Instruct"
+                    ),
+                    "process_vision_info": process_vision_info
+                }
+                logger.info("Qwen2-VL model loaded successfully from HuggingFace")
+            except ImportError:
+                logger.warning("Qwen VL not available, trying alternative...")
+                # Fallback to a simpler approach or placeholder
+                self.current_model = {"type": "placeholder", "model_id": model_id}
+        else:
+            # Check if model path exists
+            if not os.path.exists(model_path):
+                # Try to load from HuggingFace or use a placeholder
+                logger.warning(f"Model path {model_path} not found. Attempting to load from HuggingFace...")
             
-            self.current_model = {
-                "model": Qwen2VLForConditionalGeneration.from_pretrained(
-                    model_path if os.path.exists(model_path) else "Qwen/Qwen2-VL-7B-Instruct",
-                    torch_dtype="auto",
-                    device_map="auto"
-                ),
-                "processor": AutoProcessor.from_pretrained(
-                    model_path if os.path.exists(model_path) else "Qwen/Qwen2-VL-7B-Instruct"
-                ),
-                "process_vision_info": process_vision_info
-            }
-        except ImportError:
-            logger.warning("Qwen VL not available, trying alternative...")
-            # Fallback to a simpler approach or placeholder
-            self.current_model = {"type": "placeholder", "model_id": model_id}
+            try:
+                # Try to load Qwen2-VL or similar vision-language model
+                from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+                from qwen_vl_utils import process_vision_info
+                
+                self.current_model = {
+                    "model": Qwen2VLForConditionalGeneration.from_pretrained(
+                        model_path if os.path.exists(model_path) else "Qwen/Qwen2-VL-7B-Instruct",
+                        torch_dtype="auto",
+                        device_map="auto"
+                    ),
+                    "processor": AutoProcessor.from_pretrained(
+                        model_path if os.path.exists(model_path) else "Qwen/Qwen2-VL-7B-Instruct"
+                    ),
+                    "process_vision_info": process_vision_info
+                }
+            except ImportError:
+                logger.warning("Qwen VL not available, trying alternative...")
+                # Fallback to a simpler approach or placeholder
+                self.current_model = {"type": "placeholder", "model_id": model_id}
     
     def _load_text_to_image_model(self, model_id: str, model_path: str):
         """Load a text-to-image model (e.g., Stable Diffusion)."""
