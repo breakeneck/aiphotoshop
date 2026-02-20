@@ -34,8 +34,10 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 @app.route('/api/models', methods=['GET'])
 def get_models():
     """Get list of available models."""
+    logger.info(f"API /api/models called. AVAILABLE_MODELS: {list(AVAILABLE_MODELS.keys())}")
     models = []
     for model_id, config in AVAILABLE_MODELS.items():
+        logger.info(f"Adding model: {model_id} -> {config.get('name')}")
         models.append({
             "id": model_id,
             "name": config.get("name", model_id),
@@ -43,6 +45,7 @@ def get_models():
             "description": config.get("description", ""),
             "supports_multiple_images": config.get("supports_multiple_images", False)
         })
+    logger.info(f"Returning {len(models)} models")
     return jsonify({"models": models})
 
 
