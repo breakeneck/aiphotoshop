@@ -9,9 +9,9 @@ PYTHON_VERSION="3.10"
 echo "=== Deploying AI Photo Shop ==="
 
 # Pull latest code
-echo "Fetching latest code from origin/main..."
-git fetch origin main
-git reset --hard origin/main
+echo "Fetching latest code from origin/master..."
+git fetch origin master
+git reset --hard origin/master
 
 # Initialize conda for current shell
 echo "Initializing conda..."
