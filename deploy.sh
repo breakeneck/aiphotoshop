@@ -3,7 +3,7 @@
 set -e
 
 # Configuration
-CONDA_ENV_NAME="aiphotoshop"
+CONDA_ENV_PATH="./env"
 PYTHON_VERSION="3.10"
 
 echo "=== Deploying AI Photo Shop ==="
@@ -18,14 +18,14 @@ echo "Initializing conda..."
 eval "$(conda shell.bash hook)"
 
 # Check if conda environment exists, create if not
-if ! conda env list | grep -q "^${CONDA_ENV_NAME} "; then
-    echo "Creating conda environment: ${CONDA_ENV_NAME}..."
-    conda create -n ${CONDA_ENV_NAME} python=${PYTHON_VERSION} -y
+if [ ! -d "${CONDA_ENV_PATH}" ]; then
+    echo "Creating conda environment in: ${CONDA_ENV_PATH}..."
+    conda create --prefix ${CONDA_ENV_PATH} python=${PYTHON_VERSION} -y
 fi
 
 # Activate conda environment
-echo "Activating conda environment: ${CONDA_ENV_NAME}..."
-conda activate ${CONDA_ENV_NAME}
+echo "Activating conda environment: ${CONDA_ENV_PATH}..."
+conda activate ${CONDA_ENV_PATH}
 
 # Install dependencies
 echo "Installing dependencies..."
