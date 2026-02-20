@@ -4,7 +4,7 @@ set -e
 
 # Configuration
 CONDA_ENV_NAME="aiphotoshop"
-PYTHON_VERSION="3.11"
+PYTHON_VERSION="3.10"
 
 echo "=== Deploying AI Photo Shop ==="
 
