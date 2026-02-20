@@ -13,8 +13,8 @@ from flask_cors import CORS
 from PIL import Image
 from werkzeug.utils import secure_filename
 
-from config import AVAILABLE_MODELS, UPLOAD_DIR, ALLOWED_EXTENSIONS, allowed_file, HOST, PORT, DEBUG
-from model_manager import model_manager
+from .config import AVAILABLE_MODELS, UPLOAD_DIR, ALLOWED_EXTENSIONS, allowed_file, HOST, PORT, DEBUG
+from .model_manager import model_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
