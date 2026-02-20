@@ -1,6 +1,7 @@
 """
 Model Manager - handles loading, unloading and inference for AI models.
 Only one model is loaded at a time to save memory.
+Supports GGUF models via llama-cpp-python.
 """
 
 import os
@@ -11,6 +12,7 @@ from PIL import Image
 import io
 import base64
 import logging
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +26,7 @@ class ModelManager:
         self.current_model = None
         self.current_model_id = None
         self.current_model_type = None
+        self.current_model_format = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"ModelManager initialized. Device: {self.device}")
     
@@ -35,6 +38,7 @@ class ModelManager:
             self.current_model = None
             self.current_model_id = None
             self.current_model_type = None
+            self.current_model_format = None
             
             # Force garbage collection
             gc.collect()
@@ -54,10 +58,13 @@ class ModelManager:
         try:
             model_type = model_config.get("type")
             model_path = model_config.get("path")
+            model_format = model_config.get("format", "transformers")
             
-            logger.info(f"Loading model: {model_id} (type: {model_type})")
+            logger.info(f"Loading model: {model_id} (type: {model_type}, format: {model_format})")
             
-            if model_type == "image-to-image":
+            if model_format == "gguf":
+                self._load_gguf_model(model_id, model_path, model_config)
+            elif model_type == "image-to-image":
                 self._load_image_to_image_model(model_id, model_path)
             elif model_type == "text-to-image":
                 self._load_text_to_image_model(model_id, model_path)
@@ -66,6 +73,7 @@ class ModelManager:
             
             self.current_model_id = model_id
             self.current_model_type = model_type
+            self.current_model_format = model_format
             logger.info(f"Model {model_id} loaded successfully")
             return True
             
@@ -74,7 +82,40 @@ class ModelManager:
             self.current_model = None
             self.current_model_id = None
             self.current_model_type = None
+            self.current_model_format = None
             raise
+    
+    def _load_gguf_model(self, model_id: str, model_path: str, model_config: Dict[str, Any]):
+        """Load a GGUF model using llama-cpp-python."""
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        
+        try:
+            from llama_cpp import Llama
+            
+            # Determine if we have GPU support
+            n_gpu_layers = -1 if self.device == "cuda" else 0
+            
+            # Load the model
+            logger.info(f"Loading GGUF model from {model_path}")
+            self.current_model = {
+                "llm": Llama(
+                    model_path=model_path,
+                    n_gpu_layers=n_gpu_layers,
+                    n_ctx=4096,  # Context window
+                    verbose=True
+                ),
+                "config": model_config
+            }
+            logger.info("GGUF model loaded successfully")
+            
+        except ImportError as e:
+            logger.error("llama-cpp-python not installed. Install with: pip install llama-cpp-python")
+            raise ImportError(
+                "llama-cpp-python is required for GGUF models. "
+                "Install with: pip install llama-cpp-python\n"
+                "For GPU support: CMAKE_ARGS='-DGGML_CUDA=on' pip install llama-cpp-python"
+            )
     
     def _load_image_to_image_model(self, model_id: str, model_path: str):
         """Load an image-to-image model (e.g., Qwen Image)."""
@@ -143,6 +184,10 @@ class ModelManager:
         
         logger.info(f"Generating image-to-image with prompt: {prompt[:50]}...")
         
+        # Handle GGUF model
+        if self.current_model_format == "gguf":
+            return self._generate_with_gguf(images, prompt, **kwargs)
+        
         # Handle placeholder model
         if isinstance(self.current_model, dict) and self.current_model.get("type") == "placeholder":
             return self._placeholder_generation(images[0] if images else None, prompt)
@@ -194,6 +239,55 @@ class ModelManager:
             logger.error(f"Generation failed: {str(e)}")
             raise
     
+    def _generate_with_gguf(
+        self, 
+        images: List[Image.Image], 
+        prompt: str,
+        **kwargs
+    ) -> Image.Image:
+        """Generate using GGUF model."""
+        llm = self.current_model["llm"]
+        
+        # Convert images to base64 for the prompt
+        image_descriptions = []
+        for i, img in enumerate(images):
+            # Resize if too large
+            if img.width > 512 or img.height > 512:
+                img = img.copy()
+                img.thumbnail((512, 512), Image.Resampling.LANCZOS)
+            
+            # Create a description placeholder
+            image_descriptions.append(f"[Image {i+1}: {img.width}x{img.height}]")
+        
+        # Build the prompt
+        full_prompt = f"""You are an AI image editing assistant. The user has provided {len(images)} image(s) and wants you to help with image editing.
+
+Images provided:
+{chr(10).join(image_descriptions)}
+
+User request: {prompt}
+
+Please provide a detailed description of how you would edit the image based on the user's request. Be creative and specific.
+
+Response:"""
+        
+        logger.info(f"Sending prompt to GGUF model...")
+        
+        # Generate response
+        response = llm(
+            full_prompt,
+            max_tokens=512,
+            temperature=0.7,
+            top_p=0.9,
+            echo=False
+        )
+        
+        output_text = response.get("choices", [{}])[0].get("text", "No response generated")
+        logger.info(f"Model response: {output_text[:200]}...")
+        
+        # Return an image with the response text
+        return self._create_text_image(output_text, images[0] if images else None)
+    
     def generate_text_to_image(self, prompt: str, **kwargs) -> Image.Image:
         """Generate image from text prompt."""
         if self.current_model_type != "text-to-image":
@@ -234,18 +328,34 @@ class ModelManager:
         
         return img
     
-    def _create_text_image(self, text: str) -> Image.Image:
+    def _create_text_image(self, text: str, base_image: Optional[Image.Image] = None) -> Image.Image:
         """Create an image with text (for text responses from VLM)."""
         from PIL import ImageDraw, ImageFont
         
-        img = Image.new('RGB', (512, 512), color=(255, 255, 255))
+        # Use base image or create new one
+        if base_image:
+            img = base_image.copy().convert('RGB')
+            # Resize if needed
+            if img.width < 512:
+                img = img.resize((512, int(512 * img.height / img.width)), Image.Resampling.LANCZOS)
+        else:
+            img = Image.new('RGB', (512, 512), color=(30, 30, 50))
+        
+        # Create semi-transparent overlay for text
+        overlay = Image.new('RGBA', img.size, (0, 0, 0, 180))
+        img = img.convert('RGBA')
+        img = Image.alpha_composite(img, overlay)
+        
         draw = ImageDraw.Draw(img)
         
         # Use default font
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
         except:
-            font = ImageFont.load_default()
+            try:
+                font = ImageFont.truetype("arial.ttf", 14)
+            except:
+                font = ImageFont.load_default()
         
         # Wrap text
         lines = []
@@ -253,7 +363,7 @@ class ModelManager:
         current_line = ""
         for word in words:
             test_line = current_line + " " + word if current_line else word
-            if len(test_line) > 50:
+            if len(test_line) > 60:
                 lines.append(current_line)
                 current_line = word
             else:
@@ -261,19 +371,24 @@ class ModelManager:
         if current_line:
             lines.append(current_line)
         
-        # Draw text
+        # Draw text with background
         y = 20
-        for line in lines[:25]:  # Limit lines
-            draw.text((10, y), line, fill=(0, 0, 0), font=font)
+        for line in lines[:30]:  # Limit lines
+            # Draw text background
+            bbox = draw.textbbox((15, y), line, font=font)
+            draw.rectangle([bbox[0]-5, bbox[1]-2, bbox[2]+5, bbox[3]+2], fill=(0, 0, 0, 200))
+            # Draw text
+            draw.text((15, y), line, fill=(255, 255, 255), font=font)
             y += 20
         
-        return img
+        return img.convert('RGB')
     
     def get_status(self) -> Dict[str, Any]:
         """Get current model status."""
         return {
             "current_model": self.current_model_id,
             "model_type": self.current_model_type,
+            "model_format": self.current_model_format,
             "device": self.device,
             "loaded": self.current_model is not None
         }

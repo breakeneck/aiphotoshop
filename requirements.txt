@@ -22,3 +22,6 @@ safetensors>=0.4.0
 
 # Optional: For quantized models
 bitsandbytes>=0.41.0
+
+# For GGUF model support
+llama-cpp-python>=0.2.50
