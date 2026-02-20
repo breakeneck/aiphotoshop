@@ -21,8 +21,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create Flask app
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None, static_url_path=None)
 CORS(app)  # Enable CORS for frontend communication
+
+# Log paths for debugging
+logger.info(f"__file__: {__file__}")
+logger.info(f"Project root: {os.path.dirname(os.path.dirname(__file__))}")
+logger.info(f"Static path: {os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')}")
+logger.info(f"Static path exists: {os.path.exists(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static'))}")
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -45,7 +51,7 @@ def get_models():
             "description": config.get("description", ""),
             "supports_multiple_images": config.get("supports_multiple_images", False)
         })
-    logger.info(f"Returning {len(models)} models")
+    logger.info(f"Returning {len(models)} models: {models}")
     return jsonify({"models": models})
 
 
@@ -282,10 +288,15 @@ def index():
     return send_file(os.path.join(frontend_path, 'index.html'))
 
 
-@app.route('/static/<path:filename>')
+@app.route('/assets/<path:filename>')
 def serve_static(filename):
     """Serve static files."""
     static_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')
+    logger.info(f"=== SERVE_STATIC CALLED ===")
+    logger.info(f"Serving static file: {filename} from path: {static_path}")
+    logger.info(f"Static path exists: {os.path.exists(static_path)}")
+    logger.info(f"Requested file exists: {os.path.exists(os.path.join(static_path, filename))}")
+    logger.info(f"Full file path: {os.path.join(static_path, filename)}")
     return send_from_directory(static_path, filename)
 
 
