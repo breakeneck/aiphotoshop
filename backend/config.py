@@ -38,16 +38,13 @@ def find_gguf_models():
         # Simplified model ID for cleaner display
         model_id = model_id.replace('_q5_k_m', '').replace('_q4_k_m', '').replace('_q8_0', '')
         
-        # Check if this is a Qwen Image model - these don't work with llama-cpp-python
-        is_qwen_image = 'qwen' in filename.lower() and 'image' in filename.lower()
-        
         models[model_id] = {
             "name": filename.replace('.gguf', ''),
             "type": "image-to-image",
             "path": filepath,
             "description": f"GGUF quantized model: {filename}",
             "supports_multiple_images": True,
-            "format": "transformers" if is_qwen_image else "gguf"  # Use transformers for Qwen Image
+            "format": "gguf"
         }
         print(f"[CONFIG] Added model: {model_id} from {filepath} (format: {models[model_id]['format']})")
     return models
@@ -68,9 +65,9 @@ if os.path.exists(specific_model_path) and "qwen_image_edit_2511" not in AVAILAB
         "path": specific_model_path,
         "description": "Qwen model for image editing with prompt support (quantized GGUF)",
         "supports_multiple_images": True,
-        "format": "transformers"  # Use transformers instead of gguf for Qwen Image
+        "format": "gguf"
     }
-    print(f"[CONFIG] Added specific model: qwen-image (format: transformers)")
+    print(f"[CONFIG] Added specific model: qwen-image (format: gguf)")
 
 # Log discovered models
 print(f"[CONFIG] Available models: {list(AVAILABLE_MODELS.keys())}")

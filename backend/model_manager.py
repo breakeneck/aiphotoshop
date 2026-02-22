@@ -48,6 +48,10 @@ class ModelManager:
     
     def load_model(self, model_id: str, model_config: Dict[str, Any]):
         """Load a specific model, unloading any existing model first."""
+        logger.info(f"=== LOAD MODEL START ===")
+        logger.info(f"Model ID: {model_id}")
+        logger.info(f"Model config: {model_config}")
+        
         if self.current_model_id == model_id:
             logger.info(f"Model {model_id} already loaded")
             return True
@@ -60,13 +64,20 @@ class ModelManager:
             model_path = model_config.get("path")
             model_format = model_config.get("format", "transformers")
             
-            logger.info(f"Loading model: {model_id} (type: {model_type}, format: {model_format})")
+            logger.info(f"Loading model: {model_id}")
+            logger.info(f"  Type: {model_type}")
+            logger.info(f"  Format: {model_format}")
+            logger.info(f"  Path: {model_path}")
+            logger.info(f"  Device: {self.device}")
             
             if model_format == "gguf":
+                logger.info("Loading GGUF model...")
                 self._load_gguf_model(model_id, model_path, model_config)
             elif model_format == "transformers" or model_type == "image-to-image":
+                logger.info("Loading image-to-image model...")
                 self._load_image_to_image_model(model_id, model_path)
             elif model_type == "text-to-image":
+                logger.info("Loading text-to-image model...")
                 self._load_text_to_image_model(model_id, model_path)
             else:
                 raise ValueError(f"Unknown model type: {model_type}")
@@ -74,11 +85,21 @@ class ModelManager:
             self.current_model_id = model_id
             self.current_model_type = model_type
             self.current_model_format = model_format
+            
+            # Log memory usage
+            if torch.cuda.is_available():
+                memory_allocated = torch.cuda.memory_allocated() / 1024**3
+                memory_reserved = torch.cuda.memory_reserved() / 1024**3
+                logger.info(f"GPU Memory - Allocated: {memory_allocated:.2f} GB, Reserved: {memory_reserved:.2f} GB")
+            
             logger.info(f"Model {model_id} loaded successfully")
+            logger.info(f"=== LOAD MODEL END ===")
             return True
             
         except Exception as e:
             logger.error(f"Failed to load model {model_id}: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             self.current_model = None
             self.current_model_id = None
             self.current_model_type = None
@@ -87,6 +108,10 @@ class ModelManager:
     
     def _load_gguf_model(self, model_id: str, model_path: str, model_config: Dict[str, Any]):
         """Load a GGUF model using llama-cpp-python."""
+        logger.info(f"=== LOAD GGUF MODEL START ===")
+        logger.info(f"Model path: {model_path}")
+        logger.info(f"Model exists: {os.path.exists(model_path)}")
+        
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found: {model_path}")
         
@@ -95,9 +120,10 @@ class ModelManager:
             
             # Determine if we have GPU support
             n_gpu_layers = -1 if self.device == "cuda" else 0
+            logger.info(f"n_gpu_layers: {n_gpu_layers} (device: {self.device})")
             
             # Load the model
-            logger.info(f"Loading GGUF model from {model_path}")
+            logger.info(f"Loading GGUF model from {model_path}...")
             self.current_model = {
                 "llm": Llama(
                     model_path=model_path,
@@ -108,6 +134,7 @@ class ModelManager:
                 "config": model_config
             }
             logger.info("GGUF model loaded successfully")
+            logger.info(f"=== LOAD GGUF MODEL END ===")
             
         except ImportError as e:
             logger.error("llama-cpp-python not installed. Install with: pip install llama-cpp-python")
@@ -118,15 +145,55 @@ class ModelManager:
             )
     
     def _load_image_to_image_model(self, model_id: str, model_path: str):
-        """Load an image-to-image model (e.g., Qwen Image)."""
-        # For Qwen Image models, use HuggingFace instead of GGUF
-        if "qwen" in model_id.lower():
-            logger.info(f"Loading Qwen Image model from HuggingFace (ignoring GGUF path)")
+        """Load an image-to-image model (e.g., Stable Diffusion img2img)."""
+        logger.info(f"=== LOAD IMAGE-TO-IMAGE MODEL START ===")
+        logger.info(f"Model ID: {model_id}")
+        logger.info(f"Model path: {model_path}")
+        logger.info(f"Device: {self.device}")
+        
+        # Try to load Stable Diffusion img2img pipeline
+        try:
+            from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionXLImg2ImgPipeline
+            
+            logger.info("Diffusers library available")
+            
+            # Check if it's SDXL
+            if "sdxl" in model_id.lower() or "xl" in model_id.lower():
+                logger.info("Loading SDXL img2img pipeline")
+                self.current_model = StableDiffusionXLImg2ImgPipeline.from_pretrained(
+                    "stabilityai/stable-diffusion-xl-refiner-1.0",
+                    torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                    use_safetensors=True
+                )
+            else:
+                logger.info("Loading Stable Diffusion img2img pipeline")
+                self.current_model = StableDiffusionImg2ImgPipeline.from_pretrained(
+                    "runwayml/stable-diffusion-v1-5",
+                    torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                    use_safetensors=True
+                )
+            
+            if self.device == "cuda":
+                self.current_model = self.current_model.to("cuda")
+                logger.info("Model moved to CUDA")
+            
+            # Log memory usage
+            if torch.cuda.is_available():
+                memory_allocated = torch.cuda.memory_allocated() / 1024**3
+                memory_reserved = torch.cuda.memory_reserved() / 1024**3
+                logger.info(f"GPU Memory - Allocated: {memory_allocated:.2f} GB, Reserved: {memory_reserved:.2f} GB")
+            
+            logger.info(f"Image-to-image model loaded successfully on {self.device}")
+            logger.info(f"=== LOAD IMAGE-TO-IMAGE MODEL END ===")
+            
+        except ImportError:
+            logger.warning("Diffusers not available, trying alternative...")
+            # Try to load Qwen2-VL for understanding (but won't edit images)
             try:
-                # Try to load Qwen2-VL or similar vision-language model
                 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
                 from qwen_vl_utils import process_vision_info
                 
+                logger.info("Loading Qwen2-VL for image understanding (editing not supported)")
                 self.current_model = {
                     "model": Qwen2VLForConditionalGeneration.from_pretrained(
                         "Qwen/Qwen2-VL-7B-Instruct",
@@ -136,39 +203,15 @@ class ModelManager:
                     "processor": AutoProcessor.from_pretrained(
                         "Qwen/Qwen2-VL-7B-Instruct"
                     ),
-                    "process_vision_info": process_vision_info
+                    "process_vision_info": process_vision_info,
+                    "type": "vision_language"
                 }
-                logger.info("Qwen2-VL model loaded successfully from HuggingFace")
+                logger.info("Qwen2-VL loaded for image understanding only")
+                logger.info(f"=== LOAD IMAGE-TO-IMAGE MODEL END ===")
             except ImportError:
-                logger.warning("Qwen VL not available, trying alternative...")
-                # Fallback to a simpler approach or placeholder
+                logger.warning("Qwen VL not available, using placeholder...")
                 self.current_model = {"type": "placeholder", "model_id": model_id}
-        else:
-            # Check if model path exists
-            if not os.path.exists(model_path):
-                # Try to load from HuggingFace or use a placeholder
-                logger.warning(f"Model path {model_path} not found. Attempting to load from HuggingFace...")
-            
-            try:
-                # Try to load Qwen2-VL or similar vision-language model
-                from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
-                from qwen_vl_utils import process_vision_info
-                
-                self.current_model = {
-                    "model": Qwen2VLForConditionalGeneration.from_pretrained(
-                        model_path if os.path.exists(model_path) else "Qwen/Qwen2-VL-7B-Instruct",
-                        torch_dtype="auto",
-                        device_map="auto"
-                    ),
-                    "processor": AutoProcessor.from_pretrained(
-                        model_path if os.path.exists(model_path) else "Qwen/Qwen2-VL-7B-Instruct"
-                    ),
-                    "process_vision_info": process_vision_info
-                }
-            except ImportError:
-                logger.warning("Qwen VL not available, trying alternative...")
-                # Fallback to a simpler approach or placeholder
-                self.current_model = {"type": "placeholder", "model_id": model_id}
+                logger.info(f"=== LOAD IMAGE-TO-IMAGE MODEL END ===")
     
     def _load_text_to_image_model(self, model_id: str, model_path: str):
         """Load a text-to-image model (e.g., Stable Diffusion)."""
@@ -209,59 +252,112 @@ class ModelManager:
         
         logger.info(f"Generating image-to-image with prompt: {prompt[:50]}...")
         
-        # Handle GGUF model
+        # Handle GGUF model - use Stable Diffusion img2img instead
         if self.current_model_format == "gguf":
-            return self._generate_with_gguf(images, prompt, **kwargs)
+            logger.warning("GGUF format detected, but using Stable Diffusion img2img for actual image editing")
+            # Load Stable Diffusion img2img on the fly
+            return self._generate_with_stable_diffusion_img2img(images, prompt, **kwargs)
         
         # Handle placeholder model
         if isinstance(self.current_model, dict) and self.current_model.get("type") == "placeholder":
+            logger.warning("Using placeholder model - no actual image editing will occur")
             return self._placeholder_generation(images[0] if images else None, prompt)
         
+        # Handle vision-language model (Qwen2-VL) - can't edit images, only understand them
+        if isinstance(self.current_model, dict) and self.current_model.get("type") == "vision_language":
+            logger.warning("Vision-language model loaded - using Stable Diffusion img2img for actual editing")
+            return self._generate_with_stable_diffusion_img2img(images, prompt, **kwargs)
+        
+        # Handle Stable Diffusion img2img pipeline
         try:
-            model = self.current_model["model"]
-            processor = self.current_model["processor"]
-            process_vision_info = self.current_model["process_vision_info"]
+            base_image = images[0] if images else None
+            if base_image is None:
+                raise ValueError("At least one image is required for image-to-image")
             
-            # Prepare messages for Qwen2-VL
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image", "image": img} for img in images
-                    ] + [
-                        {"type": "text", "text": prompt}
-                    ]
-                }
-            ]
+            # Resize image if needed
+            if base_image.width > 1024 or base_image.height > 1024:
+                base_image = base_image.copy()
+                base_image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
             
-            # Process inputs
-            text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-            image_inputs, video_inputs = process_vision_info(messages)
-            inputs = processor(
-                text=[text],
-                images=image_inputs,
-                videos=video_inputs,
-                padding=True,
-                return_tensors="pt"
-            )
-            inputs = inputs.to(model.device)
+            # Generate with img2img
+            strength = kwargs.get("strength", 0.75)  # How much to change the image (0-1)
+            num_inference_steps = kwargs.get("steps", 30)
+            guidance_scale = kwargs.get("guidance_scale", 7.5)
             
-            # Generate
-            generated_ids = model.generate(**inputs, max_new_tokens=512)
-            generated_ids_trimmed = [
-                out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-            ]
+            logger.info(f"Running img2img with strength={strength}, steps={num_inference_steps}")
             
-            output_text = processor.batch_decode(
-                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-            )
+            result = self.current_model(
+                prompt=prompt,
+                image=base_image,
+                strength=strength,
+                num_inference_steps=num_inference_steps,
+                guidance_scale=guidance_scale
+            ).images[0]
             
-            # For now, return a placeholder image with the response text
-            # In a real implementation, you might use a separate image generation model
-            return self._create_text_image(output_text[0] if output_text else "No output")
+            logger.info("Image-to-image generation completed successfully")
+            return result
             
         except Exception as e:
             logger.error(f"Generation failed: {str(e)}")
+            raise
+    
+    def _generate_with_stable_diffusion_img2img(
+        self, 
+        images: List[Image.Image], 
+        prompt: str,
+        **kwargs
+    ) -> Image.Image:
+        """Generate using Stable Diffusion img2img pipeline."""
+        logger.info("Loading Stable Diffusion img2img pipeline...")
+        
+        try:
+            from diffusers import StableDiffusionImg2ImgPipeline
+            
+            # Load the pipeline
+            pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+                "runwayml/stable-diffusion-v1-5",
+                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                use_safetensors=True
+            )
+            
+            if self.device == "cuda":
+                pipe = pipe.to("cuda")
+            
+            logger.info(f"Stable Diffusion img2img loaded on {self.device}")
+            
+            # Get base image
+            base_image = images[0] if images else None
+            if base_image is None:
+                raise ValueError("At least one image is required for image-to-image")
+            
+            # Resize image if needed
+            if base_image.width > 1024 or base_image.height > 1024:
+                base_image = base_image.copy()
+                base_image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+            
+            # Generate with img2img
+            strength = kwargs.get("strength", 0.75)
+            num_inference_steps = kwargs.get("steps", 30)
+            guidance_scale = kwargs.get("guidance_scale", 7.5)
+            
+            logger.info(f"Running img2img with strength={strength}, steps={num_inference_steps}")
+            
+            result = pipe(
+                prompt=prompt,
+                image=base_image,
+                strength=strength,
+                num_inference_steps=num_inference_steps,
+                guidance_scale=guidance_scale
+            ).images[0]
+            
+            logger.info("Image-to-image generation completed successfully")
+            return result
+            
+        except ImportError:
+            logger.error("Diffusers not available. Install with: pip install diffusers")
+            raise ImportError("diffusers library is required for image-to-image generation")
+        except Exception as e:
+            logger.error(f"Stable Diffusion img2img failed: {str(e)}")
             raise
     
     def _generate_with_gguf(
@@ -270,48 +366,9 @@ class ModelManager:
         prompt: str,
         **kwargs
     ) -> Image.Image:
-        """Generate using GGUF model."""
-        llm = self.current_model["llm"]
-        
-        # Convert images to base64 for the prompt
-        image_descriptions = []
-        for i, img in enumerate(images):
-            # Resize if too large
-            if img.width > 512 or img.height > 512:
-                img = img.copy()
-                img.thumbnail((512, 512), Image.Resampling.LANCZOS)
-            
-            # Create a description placeholder
-            image_descriptions.append(f"[Image {i+1}: {img.width}x{img.height}]")
-        
-        # Build the prompt
-        full_prompt = f"""You are an AI image editing assistant. The user has provided {len(images)} image(s) and wants you to help with image editing.
-
-Images provided:
-{chr(10).join(image_descriptions)}
-
-User request: {prompt}
-
-Please provide a detailed description of how you would edit the image based on the user's request. Be creative and specific.
-
-Response:"""
-        
-        logger.info(f"Sending prompt to GGUF model...")
-        
-        # Generate response
-        response = llm(
-            full_prompt,
-            max_tokens=512,
-            temperature=0.7,
-            top_p=0.9,
-            echo=False
-        )
-        
-        output_text = response.get("choices", [{}])[0].get("text", "No response generated")
-        logger.info(f"Model response: {output_text[:200]}...")
-        
-        # Return an image with the response text
-        return self._create_text_image(output_text, images[0] if images else None)
+        """Generate using GGUF model - redirects to Stable Diffusion img2img."""
+        logger.warning("GGUF model detected, redirecting to Stable Diffusion img2img")
+        return self._generate_with_stable_diffusion_img2img(images, prompt, **kwargs)
     
     def generate_text_to_image(self, prompt: str, **kwargs) -> Image.Image:
         """Generate image from text prompt."""
